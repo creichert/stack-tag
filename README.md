@@ -8,9 +8,8 @@ Create ctags/etags for a Haskell project based on stack.yaml
 
 ## Features
 
-- Tagging is done based on snapshots. All generated tags will
-  correspond to the exact matching version found in the active
-  `resolver`
+- Tag files are based on snapshots. All generated tags will correspond
+  to the exact matching version found in the active `resolver`
 
 - Tag files are cached. Dependencies only need to be downloaded once
   per snapshot.
