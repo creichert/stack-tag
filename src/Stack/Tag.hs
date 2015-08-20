@@ -152,7 +152,7 @@ parTag srcs depsrcs = do
   StackTagOpts {noCache=nocache} <- ask
   -- control the number of jobs by using capabilities
   -- io $ mapCapabilityPool (tagDependency nocache srcs) depsrcs
-  io $ mapPool 20 (tagDependency nocache srcs) depsrcs
+  io $ mapPool 3 (tagDependency nocache srcs) depsrcs
 
 -- | Tag a single dependency
 tagDependency :: Bool -> [(Text, [Text])] -> FilePath -> IO (Maybe FilePath)
