@@ -201,7 +201,7 @@ runTagger :: MonadIO m => TagCmd -> m (Maybe TagOutput)
 runTagger (TagCmd t fmt to fp)
   = do (ec,stout,_) <- io $ readProcessWithExitCode
                                         (tagExe t)
-                                        [tagFmt fmt, "-R", "--output", to, fp]
+                                        [tagFmt fmt, "-R", "--ignore-close-implementation", "--output", to, fp]
                                         []
        case ec of
          ExitFailure _ -> p stout >> return Nothing
