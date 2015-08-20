@@ -13,6 +13,11 @@ import qualified Control.Exception as E
 import Control.Concurrent
 import Control.Concurrent.Async
 
+-- ifdef GHC
+-- import GHC.Conc (getNumProcessors)
+-- endif
+
+
 -- | Map async using 'getNumCapabilities' to determine
 -- the number of active threads.
 --
@@ -23,6 +28,7 @@ import Control.Concurrent.Async
 -- which are heavily IO bound.
 mapCapabilityPool :: Traversable t => (a -> IO b) -> t a -> IO (t b)
 mapCapabilityPool f xs = do
+  -- num <- getNumProcessors
   num <- getNumCapabilities
   mapPool (num+1) f xs
 
