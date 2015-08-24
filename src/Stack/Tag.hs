@@ -150,7 +150,12 @@ tagSources srcs depsrcs = do
 parTag :: [(Text, [Text])] -> [FilePath] -> StackTag [Maybe FilePath]
 parTag srcs depsrcs = do
   StackTagOpts {noCache=nocache} <- ask
-  -- control the number of jobs by using capabilities
+
+  -- control the number of jobs by using capabilities Currently,
+  -- capabilities creates a few too many threads which saturates the
+  -- CPU and network connection. For now, it's manually set to 3 until
+  -- a better threading story is figured out.
+  --
   -- io $ mapCapabilityPool (tagDependency nocache srcs) depsrcs
   io $ mapPool 3 (tagDependency nocache srcs) depsrcs
 
