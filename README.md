@@ -28,3 +28,5 @@ is ETags.
 - Handle `extra-deps` dependencies
 - Handle `-installed` dependencies
 - Cleanup logging
+- Any way to tag operators?
+- Tag only exposed-modules
