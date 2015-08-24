@@ -44,9 +44,10 @@ test-suite spec
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N2
   build-depends:       base
                      , stack-tag
-                     -- , hspec
-                     -- , HUnit
-                     -- , QuickCheck
+                     , hspec
+                     , HUnit
+                     , QuickCheck
+                     -- , doctest
 
 source-repository head
   type:     git
