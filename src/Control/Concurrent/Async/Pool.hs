@@ -3,6 +3,8 @@
 -- of active threads during concurrent computations
 -- using a semaphore.
 
+{-# LANGUAGE CPP #-}
+
 module Control.Concurrent.Async.Pool
        (
          mapPool
@@ -12,6 +14,10 @@ module Control.Concurrent.Async.Pool
 import qualified Control.Exception as E
 import Control.Concurrent
 import Control.Concurrent.Async
+
+#if !MIN_VERSION_base(4,8,0)
+import Data.Traversable (Traversable)
+#endif
 
 -- ifdef GHC
 -- import GHC.Conc (getNumProcessors)

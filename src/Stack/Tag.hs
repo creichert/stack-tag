@@ -1,10 +1,15 @@
 
 -- | TAG a stack project based on snapshot versions
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Stack.Tag where
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative
+#endif
 
 import qualified Control.Exception as E
 import qualified Data.Set as Set

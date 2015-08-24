@@ -1,6 +1,11 @@
+
+# ghc 7.10
+resolver: lts-3.0
+
+# ghc 7.8
+# resolver: lts-2.1
+
 flags: {}
 packages:
   - '.'
 extra-deps: []
-# resolver: lts-2.20
-resolver: nightly-2015-07-29
