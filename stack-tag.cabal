@@ -1,6 +1,6 @@
 name:                stack-tag
 version:             0.1.0.0
-synopsis:            Generate ctags/etags for stack based projects
+synopsis:            Generate etags for stack based projects
 homepage:            https://github.com/creichert/stack-tag
 license:             BSD3
 license-file:        LICENSE
@@ -11,7 +11,7 @@ category:            Web
 build-type:          Simple
 cabal-version:       >=1.10
 extra-source-files:  README.md
-description:         Generate ctags/etags for stack based projects
+description:         Generate etags for stack based projects
 
 library
   hs-source-dirs:      src
