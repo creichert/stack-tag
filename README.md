@@ -6,6 +6,14 @@ Create ctags/etags for a Haskell project based on stack.yaml
 	cd path/to/project
     stack-tag
 
+Then, inside of emacs:
+
+    M-x visit-tags-table RET
+
+Select the proper TAGS file. Get started using `find-tag` and
+`pop-tag-mark` to do basic TAGS navigation.
+
+
 NOTE: You need `hasktags` installed to used `stack-tag`
 
 ## Features
@@ -23,6 +31,9 @@ NOTE: You need `hasktags` installed to used `stack-tag`
 
 Still a work-in-progress. Currently, the only supported tagging format
 is ETags and the only support tag executable is Hasktags.
+
+On large projects, there is a significant amount of collision on
+common names, such as `insert`, `map`, etc.
 
 ## TODO
 
