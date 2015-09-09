@@ -6,6 +6,8 @@ Create ctags/etags for a Haskell project based on stack.yaml
 	cd path/to/project
     stack-tag
 
+NOTE: You need `hasktags` installed to used `stack-tag`
+
 ## Features
 
 - Tag files are based on snapshots. All generated tags will correspond
@@ -20,7 +22,7 @@ Create ctags/etags for a Haskell project based on stack.yaml
 ## WIP
 
 Still a work-in-progress. Currently, the only supported tagging format
-is ETags.
+is ETags and the only support tag executable is Hasktags.
 
 ## TODO
 
