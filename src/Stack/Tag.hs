@@ -81,6 +81,7 @@ stackTag :: StackTagOpts -> IO ()
 stackTag = runReaderT (runStackTag app)
  where
   app = do chkStackCompatible
+           chkIsStack
            sources     <- stkPaths
            depSources  <- stkDepSources
            tagSources sources depSources
@@ -99,6 +100,16 @@ p = io . putStrLn
 runStk :: [String] -> IO (ExitCode, String, String)
 runStk args
   = readProcessWithExitCode "stack" args []
+
+chkIsStack :: StackTag ()
+chkIsStack = do
+  StackTagOpts {optsStackYaml=stackYaml} <- ask
+  sYaml <- io $ doesFileExist "stack.yaml"
+
+  case stackYaml of
+    Nothing -> unless sYaml $ error "stack.yaml not found or specified!"
+    _ -> return ()
+
 
 --- | Check whether the current version of stack
 -- is compatible by trying to run `stack list-depenencies --help`.
