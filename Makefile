@@ -11,5 +11,8 @@ build:
 test:
 	stack test
 
+clean:
+	stack clean
+
 TAGS: build
 	$(STKTAG)
