@@ -1,6 +1,9 @@
 
 # ghc 7.10
-resolver: lts-3.0
+resolver: nightly-2017-02-01
+
+# ghc 7.10
+#resolver: lts-3.0
 
 # ghc 7.8
 # resolver: lts-2.1

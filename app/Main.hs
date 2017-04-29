@@ -4,6 +4,7 @@
 module Main where
 
 import Control.Applicative
+import Data.Monoid
 import Options.Applicative
 import Stack.Tag
 
