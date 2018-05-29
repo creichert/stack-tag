@@ -141,10 +141,10 @@ stkPaths = do
     splitAndStrip = filter (not . T.null) . map T.strip . T.splitOn ":"
 
 -- | Get a list of dependencies using:
--- @stack --list-dependencies --separator=-@
+-- @stack --list-dependencies --test --bench --separator=-@
 stkDepSources :: StackTag [String]
 stkDepSources = do
-  (_exitc,ls,_) <- io $ runStk ["list-dependencies", "--separator=-"]
+  (_exitc,ls,_) <- io $ runStk ["list-dependencies", "--test", "--bench", "--separator=-"]
   return $ lines ls
 
 --------------------------------------------------------------------------
