@@ -1,9 +1,8 @@
-
--- | TAG a stack project based on snapshot versions
-
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
+-- | TAG a stack project based on snapshot versions
 
 module Stack.Tag where
 
@@ -115,14 +114,14 @@ chkHaskTags :: StackTag ()
 chkHaskTags = do
   ht <- io $ findExecutable "hasktags"
   case ht of
-    Just p -> return ()
+    Just _p -> return ()
     Nothing -> error "You must have hasktags installed Run 'stack install hasktags'."
 
 --- | Check whether the current version of stack
 -- is compatible by trying to run `stack list-depenencies --help`.
 chkStackCompatible :: StackTag ()
 chkStackCompatible = do
-  (exitc,out,_) <- io $ runStk ["list-dependencies", "--help"]
+  (exitc, _, _) <- io $ runStk ["list-dependencies", "--help"]
   case exitc of
     ExitSuccess    -> return ()
     ExitFailure _e ->
@@ -198,7 +197,7 @@ tagDependency nocache stkpaths dep = do
     -- the stack source (especially since --haddock has similar
     -- behavior). A quick solution to avoid this might be to run the
     -- entire function in the target directory
-    readProcess "rm" ["--preserve-root", "-rf", dep] []
+    _ <- readProcess "rm" ["--preserve-root", "-rf", dep] []
 
     exists <- doesDirectoryExist dir
     tagged <- doesFileExist tagFile
@@ -229,7 +228,15 @@ runTagger :: MonadIO m => TagCmd -> m (Maybe TagOutput)
 runTagger (TagCmd t fmt to fp)
   = do (ec,stout,_) <- io $ readProcessWithExitCode
                                         (tagExe t)
-                                        [tagFmt fmt, "-R", "--ignore-close-implementation", "--output", to, fp]
+                                        [tagFmt fmt
+                                        , "-R"
+#if !MIN_VERSION_hasktags(0,70,1)
+                                        , "--ignore-close-implementation"
+#endif
+                                        , "--output"
+                                        , to
+                                        , fp
+                                        ]
                                         []
        case ec of
          ExitFailure _ -> p stout >> return Nothing
