@@ -166,7 +166,7 @@ tagSources srcs depsrcs = do
   let xs = concatMap lines taggedSrcs
       ys = if False then (Set.toList . Set.fromList) xs else xs
 
-  p $ "[tag:all] merged tags " ++ show (length taggedSrcs) ++ " projects"
+  p $ "[tag:done] built & merged tags for " ++ show (length taggedSrcs) ++ " projects"
   io $ writeFile "TAGS" $ unlines ys
 
 parTag :: [(Text, [Text])] -> [FilePath] -> StackTag [Either (PkgName, String) FilePath]
@@ -226,9 +226,9 @@ tagDependency nocache stkpaths dep = do
               io $ readProcess "mv" [dep,dir] []
 
     if tagged && nocache
-       then do p $ "[tag:cache] " ++ dep
+       then do p $ "[tag:nocache] " ++ dep
                return (Right tagFile)
-       else do p $ "[tag:nocache] " ++ dep
+       else do p $ "[tag:cache] " ++ dep
                runTagger (TagCmd Hasktags ETags tagFile dir dep)
 
 runTagger :: TagCmd -> StackTag (Either (PkgName, String) TagOutput)
