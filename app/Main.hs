@@ -24,19 +24,21 @@ stackTagOptions =
         <> help "Completely re-run tag command. Don't use cached tag files." )
 
 optsDesc :: String
-optsDesc
-  = "Create ctags/etags for a project and all dependencies"
+optsDesc = "Create ctags/etags for a project and all dependencies"
 
 optsHeader :: String
-optsHeader
-  = "stack-tag - Create etags/ctags for a stack project based on snapshot"
+optsHeader = "stack-tag - Create etags/ctags for a stack project based on snapshot"
 
 stackTagOpts :: ParserInfo StackTagOpts
 stackTagOpts =
-  info (helper <*> stackTagOptions)
-         ( fullDesc
-           <> progDesc optsDesc
-           <> header optsHeader )
+  info
+     (helper
+      <*> infoOption "stack-tag v0.2.0, (c) Christopher Reichert 2018"
+            ( long "version" <> help "Display version string" )
+      <*> stackTagOptions )
+     ( fullDesc
+     <> progDesc optsDesc
+     <> header optsHeader )
 
 main :: IO ()
 main = execParser stackTagOpts >>= stackTag
