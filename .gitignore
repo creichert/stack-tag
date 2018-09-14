@@ -1,3 +1,5 @@
 dist/
 .stack-work
 *.tags
+TAGS
+stack-tag.cabal

@@ -1,0 +1,45 @@
+name:                stack-tag
+version:             0.2.0
+license:             MIT
+license-file:        LICENSE
+github:              "creichert/stack-tag"
+author:              "Christopher & Cody Reichert (Reichert Brothers)"
+maintainer:          "christopher@reichertbrothers.com"
+copyright:           "2018 Reichert Brothers"
+
+extra-source-files:
+  - README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - mtl
+  - process
+  - containers
+  - directory
+  - text
+  - async
+  - hasktags
+
+library:
+  source-dirs: src
+  ghc-options:
+    - -Wall
+    - -fno-warn-unused-do-bind
+    - -fwarn-incomplete-uni-patterns
+    - -fwarn-incomplete-record-updates
+
+
+executables:
+  stack-tag:
+    main: app/Main.hs
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+      - -Wall
+      - -fno-warn-unused-do-bind
+      - -fwarn-incomplete-uni-patterns
+      - -fwarn-incomplete-record-updates
+    dependencies:
+      - stack-tag
+      - optparse-applicative

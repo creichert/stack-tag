@@ -4,13 +4,13 @@
 all: test build
 
 build:
-	stack build
+	stack build --fast
 
-test:
-	stack test
+test: TAGS
+	@#stack test
 
 clean:
 	stack clean
 
 TAGS: build
-	stack exec stack-tag
+	stack exec -- stack-tag --verbose

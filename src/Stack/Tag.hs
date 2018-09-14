@@ -1,34 +1,29 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
 
 -- | TAG a stack project based on snapshot versions
 
 module Stack.Tag where
 
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-#endif
+import qualified Data.Set          as Set
+import qualified Data.Text         as T
+import qualified Data.Traversable  as T
 
-import qualified Control.Exception as E
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Traversable as T
-
+import Control.Exception    as E
 import Control.Monad.Reader
+import Data.Either
 import Data.Maybe
-import Data.Text (Text)
+import Data.Text            (Text)
 import System.Directory
-import System.Process
 import System.Exit
+import System.Process
 
 import Control.Concurrent.Async.Pool
 
-data StackTagOpts
-  = StackTagOpts
-    {
-      -- | Location of the stack.yaml to generate
-      -- tags for
+
+data StackTagOpts = StackTagOpts {
+
+      -- | Location of the stack.yaml to generate tags for
       optsStackYaml :: !(Maybe FilePath)
 
       -- | Verbose output
@@ -37,15 +32,6 @@ data StackTagOpts
       -- | Flag to ignore any cached tags and re-run the tagger
     , noCache       :: !Bool
 
-      -- TODO flags
-
-      -- set tag command, hasktags, hothasktags, etc
-      -- , tagCommand :: !Tagger
-      -- Set format etags/ctags
-      -- , tagFormat  :: !TagFmt
-      -- Only tag dependencies explicitly mentioned in
-      -- the cabal file.
-      -- , noTransitive :: !Bool
     } deriving Show
 
 
@@ -54,14 +40,17 @@ data Tagger = Hasktags
             | OtherTagger Text
             deriving Show
 
-data TagFmt = CTag
-            | ETag
+data TagFmt = CTags
+            | ETags
+            | Both
             | OtherFmt Text
             deriving Show
 
 type TagOutput = FilePath
 type SourceDir = FilePath
-data TagCmd = TagCmd Tagger TagFmt TagOutput SourceDir deriving Show
+type PkgName = String
+
+data TagCmd = TagCmd Tagger TagFmt TagOutput SourceDir PkgName deriving Show
 
 newtype StackTag a = StackTag {
     runStackTag :: ReaderT StackTagOpts IO a
@@ -92,14 +81,16 @@ stackTag = runReaderT (runStackTag app)
 io :: MonadIO m => IO a -> m a
 io = liftIO
 
-p :: (MonadIO m) => String -> m ()
-p = io . putStrLn
+p :: String -> StackTag ()
+p msg = whenM (ask >>= pure . optsVerbose) $ io (putStrLn msg)
+
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM predicate go = predicate >>= flip when go
 
 -- | Run a command using the `stack' command-line tool
 -- with a list of arguments
-runStk :: [String] -> IO (ExitCode, String, String)
-runStk args
-  = readProcessWithExitCode "stack" args []
+runStk :: [String] -> StackTag (ExitCode, String, String)
+runStk args = io $ readProcessWithExitCode "stack" args []
 
 chkIsStack :: StackTag ()
 chkIsStack = do
@@ -108,7 +99,7 @@ chkIsStack = do
 
   case stackYaml of
     Nothing -> unless sYaml $ error "stack.yaml not found or specified!"
-    _ -> return ()
+    _       -> return ()
 
 chkHaskTags :: StackTag ()
 chkHaskTags = do
@@ -121,17 +112,17 @@ chkHaskTags = do
 -- is compatible by trying to run `stack list-depenencies --help`.
 chkStackCompatible :: StackTag ()
 chkStackCompatible = do
-  (exitc, _, _) <- io $ runStk ["list-dependencies", "--help"]
+  (exitc, _, _) <- runStk ["ls", "dependencies", "--help"]
   case exitc of
     ExitSuccess    -> return ()
     ExitFailure _e ->
-      p (show exitc) >> error "You need stack version 0.1.2.2 or higher installed and in your PATH to use stack-tag"
+      p (show exitc) >> error "You need stack version 1.7.1 or higher installed and in your PATH to use stack-tag"
 
 -- | Get a list of relavant directories from stack using
 -- the @stack path@ command
 stkPaths :: StackTag [(Text,[Text])]
 stkPaths = do
-    (_,ps,_) <- io $ runStk ["path"]
+    (_,ps,_) <- runStk ["path"]
     return (parsePaths ps)
   where
     parsePaths = map parsePath . T.lines . T.pack
@@ -143,7 +134,9 @@ stkPaths = do
 -- @stack --list-dependencies --test --bench --separator=-@
 stkDepSources :: StackTag [String]
 stkDepSources = do
-  (_exitc,ls,_) <- io $ runStk ["list-dependencies", "--test", "--bench", "--separator=-"]
+  (_exitc,ls,_) <- runStk [ "ls", "dependencies", "--external"
+                               , "--include-base", "--test"
+                               , "--bench", "--separator=-"]
   return $ lines ls
 
 --------------------------------------------------------------------------
@@ -151,6 +144,7 @@ stkDepSources = do
 
 tagSources :: [(Text,[Text])] -> [FilePath] -> StackTag ()
 tagSources srcs depsrcs = do
+
   let srcDir    = lookup "project-root" srcs
   let tagroot   = T.unpack . fromMaybe "." . listToMaybe . fromMaybe [] $ srcDir
 
@@ -158,20 +152,27 @@ tagSources srcs depsrcs = do
   depTagFiles <- parTag srcs depsrcs
 
   -- map a tag command over all provided sources
-  let cmd = TagCmd Hasktags ETag "stack.tags" tagroot
-  p $ "Running Tagger => " ++ show cmd
+  thisProj   <- runTagger (TagCmd Hasktags ETags "stack.tags" tagroot "project-root")
+  taggedSrcs <- T.traverse (io . readFile) (rights (thisProj : depTagFiles))
 
-  thisProj <- io $ runTagger cmd
+  let errors = lefts (thisProj : depTagFiles)
+  unless (null errors) $ do
 
-  p "Merging TAGS"
-  taggedSrcs <- T.traverse (io . readFile) (catMaybes (thisProj : depTagFiles))
-  let xs = concat $ fmap lines taggedSrcs
+      let pkg_errs = map (\(pkg,err) -> pkg ++ ": " ++ err) $ take 10 errors
+      error $ unlines $
+                   "[tag:error] stack-tag encountered errors creating tags"
+                 : pkg_errs
+
+  let xs = concatMap lines taggedSrcs
       ys = if False then (Set.toList . Set.fromList) xs else xs
+
+  p $ "[tag:all] merged tags " ++ show (length taggedSrcs) ++ " projects"
   io $ writeFile "TAGS" $ unlines ys
 
-parTag :: [(Text, [Text])] -> [FilePath] -> StackTag [Maybe FilePath]
+parTag :: [(Text, [Text])] -> [FilePath] -> StackTag [Either (PkgName, String) FilePath]
 parTag srcs depsrcs = do
-  StackTagOpts {noCache=nocache} <- ask
+
+  o@StackTagOpts {noCache=nocache} <- ask
 
   -- control the number of jobs by using capabilities Currently,
   -- capabilities creates a few too many threads which saturates the
@@ -179,15 +180,24 @@ parTag srcs depsrcs = do
   -- a better threading story is figured out.
   --
   -- io $ mapCapabilityPool (tagDependency nocache srcs) depsrcs
-  io $ mapPool 3 (tagDependency nocache srcs) depsrcs
+
+  -- WAT: rewrap the transformer. It's less heavy duty than bringing in
+  -- monad-control or refactoring (2018-09-14)
+  let worker osrc = flip runReaderT o $ do
+          runStackTag (tagDependency nocache srcs osrc)
+
+  io $ mapPool 3 worker depsrcs
 
 -- | Tag a single dependency
-tagDependency :: Bool -> [(Text, [Text])] -> FilePath -> IO (Maybe FilePath)
+tagDependency :: Bool -> [(Text, [Text])] -> FilePath -> StackTag (Either (PkgName, String) FilePath)
 tagDependency nocache stkpaths dep = do
 
-    let msg          = "No 'snapshot-install-root' found, aborting."
-        fatal        = error ("Fatal error tagging " ++ dep ++ ". " ++ msg)
-        (snapRoot:_) = fromMaybe fatal (lookup "snapshot-install-root" stkpaths)
+    let snapRoot
+            | Just (sr : _) <- lookup "snapshot-install-root" stkpaths = sr
+            | otherwise = error ("[tag:error] error tagging "
+                               ++ dep
+                               ++ ". "
+                               ++ "No 'snapshot-install-root' found, aborting.")
         dir          = T.unpack snapRoot ++ "/packages" ++ "/" ++ dep
         tagFile      = dir ++ "/TAGS"
 
@@ -197,55 +207,64 @@ tagDependency nocache stkpaths dep = do
     -- the stack source (especially since --haddock has similar
     -- behavior). A quick solution to avoid this might be to run the
     -- entire function in the target directory
-    _ <- readProcess "rm" ["--preserve-root", "-rf", dep] []
+    _ <- io $ readProcess "rm" ["--preserve-root", "-rf", dep] []
 
-    exists <- doesDirectoryExist dir
-    tagged <- doesFileExist tagFile
+    -- error (show dep)
 
-    if exists
-        then p $ "Cached version of " ++ dep ++ " found"
-        else p $ "No cached version of " ++ dep ++ " found"
+    exists <- io $ doesDirectoryExist dir
+    tagged <- io $ doesFileExist tagFile
 
     unless exists $ void $ do
-      createDirectoryIfMissing True dir
-      p $ "Unpacking " ++ dep
-      (ec,stout,_) <- runStk ["unpack", dep]
-      case ec of
-        ExitFailure _ -> void $ p stout
-        ExitSuccess   -> void $ do
-          p $ "Moving " ++ dep ++ " to snapshot location " ++ dir
-          readProcess "mv" [dep,dir] []
+        io $ createDirectoryIfMissing True dir
+        p $ "[tag:download] " ++ dep
+        (ec,stout,_) <- runStk ["unpack", dep]
+        case ec of
+          ExitFailure _ -> void $ do
+              p $ "[tag:download] failed to download " ++ dep ++ " - " ++ stout
+          ExitSuccess   -> void $ do
+              p $ "[tag:download] cp " ++ dep ++ " to snapshot source cache in " ++ dir
+              io $ readProcess "mv" [dep,dir] []
 
     if tagged && nocache
-       then return (Just tagFile)
-       else do p $ "Tagging " ++ dep
-               runTagger (TagCmd Hasktags ETag tagFile dir)
-                 `E.catch` handleError
-   where
-    handleError (E.SomeException err) = p (show err) >> return Nothing
+       then do p $ "[tag:cache] " ++ dep
+               return (Right tagFile)
+       else do p $ "[tag:nocache] " ++ dep
+               runTagger (TagCmd Hasktags ETags tagFile dir dep)
 
-runTagger :: MonadIO m => TagCmd -> m (Maybe TagOutput)
-runTagger (TagCmd t fmt to fp)
-  = do (ec,stout,_) <- io $ readProcessWithExitCode
-                                        (tagExe t)
-                                        [tagFmt fmt
-                                        , "-R"
-#if !MIN_VERSION_hasktags(0,70,1)
-                                        , "--ignore-close-implementation"
-#endif
-                                        , "--output"
-                                        , to
-                                        , fp
-                                        ]
-                                        []
-       case ec of
-         ExitFailure _ -> p stout >> return Nothing
-         ExitSuccess   -> return (Just to)
+runTagger :: TagCmd -> StackTag (Either (PkgName, String) TagOutput)
+runTagger (TagCmd t fmt to fp dep) = do
 
+    let opts = [ tagFmt fmt
+               , "-R"  -- tags-absolute
+               -- made the default & removed
+               -- , "--ignore-close-implementation"
+              , "--follow-symlinks"
+              -- , "--cache"
+              , "--output"
+              , to
+              , fp
+              ]
+
+    (ec, stout, err) <- hasktags opts
+
+    case ec of
+        ExitFailure _
+            | null err -> return $ Left (dep, stout)
+            | otherwise -> return $ Left (dep, err)
+        ExitSuccess   -> return $ Right to
+  where
+    hasktags opts = io $
+        readProcessWithExitCode (tagExe t) opts []
+          `E.catch` (\(SomeException err) -> return (ExitFailure 1, displayException err, ""))
+
+
+-- TODO tagExe Hasktags   = "fast-tags"
 tagExe :: Tagger -> String
 tagExe Hasktags   = "hasktags"
 tagExe _          = error "Tag command not supported. Feel free to create an issue at https://github.com/creichert/stack-tag"
 
 tagFmt :: TagFmt -> String
-tagFmt ETag    = "--etags"
+tagFmt ETags   = "--etags"
+tagFmt CTags   = "--etags"
+tagFmt Both    = "--both"
 tagFmt _       = error "Tag format not supported. Feel free to create an issue at https://github.com/creichert/stack-tag"
