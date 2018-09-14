@@ -6,6 +6,7 @@ github:              "creichert/stack-tag"
 author:              "Christopher & Cody Reichert (Reichert Brothers)"
 maintainer:          "christopher@reichertbrothers.com"
 copyright:           "2018 Reichert Brothers"
+synopsis:            Create etags for Haskell projects based on Stack snapshots
 
 extra-source-files:
   - README.md
