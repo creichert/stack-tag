@@ -20,14 +20,14 @@ references:
   # Default branch / master
 
   default_cache_key: &default_cache_key
-    v2-stack-{{ checksum "stack.yaml" }}-{{ checksum "package.yaml" }}
+    v3-stack-{{ checksum "stack.yaml" }}-{{ checksum "package.yaml" }}
 
   restore_stack_default_cache: &restore_stack_default_cache
     restore_cache:
       keys:
         - *default_cache_key
-        - v2-stack-{{ checksum "stack.yaml" }}-
-        - v2-stack
+        - v3-stack-{{ checksum "stack.yaml" }}-
+        - v3-stack
 
   save_stack_default_cache: &save_stack_default_cache
     save_cache:
@@ -38,13 +38,13 @@ references:
   # nightly
 
   nightly_cache_key: &nightly_cache_key
-    v2-stack-nightly-{{ checksum "package.yaml" }}
+    v3-stack-nightly-{{ checksum "package.yaml" }}
 
   restore_stack_nightly_cache: &restore_stack_nightly_cache
     restore_cache:
       keys:
         - *nightly_cache_key
-        - v2-stack
+        - v3-stack
 
   save_stack_nightly_cache: &save_stack_nightly_cache
     save_cache:
@@ -55,13 +55,13 @@ references:
   # lts-12
 
   lts-11_cache_key: &lts-12_cache_key
-    v2-stack-lts-12-{{ checksum "package.yaml" }}
+    v3-stack-lts-12-{{ checksum "package.yaml" }}
 
   restore_stack_lts-12_cache: &restore_stack_lts-12_cache
     restore_cache:
       keys:
         - *lts-12_cache_key
-        - v2-stack
+        - v3-stack
 
   save_stack_lts-12_cache: &save_stack_lts-12_cache
     save_cache:
@@ -72,13 +72,13 @@ references:
   # lts-11
 
   lts-11_cache_key: &lts-11_cache_key
-    v2-stack-lts-11-{{ checksum "package.yaml" }}
+    v3-stack-lts-11-{{ checksum "package.yaml" }}
 
   restore_stack_lts-11_cache: &restore_stack_lts-11_cache
     restore_cache:
       keys:
         - *lts-11_cache_key
-        - v2-stack
+        - v3-stack
 
   save_stack_lts-11_cache: &save_stack_lts-11_cache
     save_cache:
@@ -89,13 +89,13 @@ references:
   # lts-10
 
   lts-10_cache_key: &lts-10_cache_key
-    v2-stack-lts-10-{{ checksum "package.yaml" }}
+    v3-stack-lts-10-{{ checksum "package.yaml" }}
 
   restore_stack_lts-10_cache: &restore_stack_lts-10_cache
     restore_cache:
       keys:
         - *lts-10_cache_key
-        - v2-stack
+        - v3-stack
 
   save_stack_lts-10_cache: &save_stack_lts-10_cache
     save_cache:
@@ -106,13 +106,13 @@ references:
   # lts-9
 
   lts-9_cache_key: &lts-9_cache_key
-    v2-stack-lts-9-{{ checksum "package.yaml" }}
+    v3-stack-lts-9-{{ checksum "package.yaml" }}
 
   restore_stack_lts-9_cache: &restore_stack_lts-9_cache
     restore_cache:
       keys:
         - *lts-9_cache_key
-        - v2-stack
+        - v3-stack
 
   save_stack_lts-9_cache: &save_stack_lts-9_cache
     save_cache:
