@@ -1,5 +1,5 @@
 name:                stack-tag
-version:             0.2.0
+version:             0.2.1
 license:             MIT
 license-file:        LICENSE
 github:              "creichert/stack-tag"
@@ -19,6 +19,8 @@ dependencies:
   - directory
   - text
   - async
+
+build-tools:
   - hasktags
 
 library:

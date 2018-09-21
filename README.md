@@ -1,24 +1,42 @@
 
 # Stack Tag
 
-Create etags & ctags for Haskell projects based on Stack snapshots.
+Create etags for a Haskell project and all it's dependencies based on the
+stack resolver.
 
 ## Quick start
 
-    stack install stack-tag
-    stack-tag && cp stack.tag TAGS
+Create a new `TAGS` file:
 
-When you change a source file, run:
+    $ stack install stack-tag
+    $ stack-tag
 
-    stack-tag && cp stack.tag TAGS
+Update the `TAGS` file:
+
+    $ stack-tag
 
 ## Features
 
-- Tag files are based on snapshots. All generated tags will correspond to
-  the exact matching version found in the active stack `resolver`.
+- **accurate**
 
-- Tag files are cached. Dependencies only need to be downloaded once per
-  snapshot.
+    Tag files are based on the current resolver. All generated tags will
+    correspond to the exact matching version found in the active stack
+    `resolver`.
 
-- Transitive dependencies are tagged, including dependencies in
-  `executable`, `test-suite` and `benchmark` stanzas.
+- **cached**
+
+    Tag files are cached. Dependencies only need to be downloaded and
+    tagged once.
+
+- **transitive dependencies**
+
+    Transitive dependencies are tagged, including dependencies in
+    `executable`, `test-suite` and `benchmark` stanzas.
+
+
+**_how does this compare to [codex](https://github.com/aloiscochard/codex)?_**
+
+Codex supports different project types and has more configuration options.
+
+`stack-tag` only works w/ projects that have a `stack.yaml` but is very
+easy to use.
