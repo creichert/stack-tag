@@ -195,7 +195,7 @@ jobs:
       - checkout
       - *restore_stack_lts-9_cache
       - run: stack upgrade --git
-      - run: stack setup $STACK_ARGS
+      - run: stack setup $STACK_ARGS --upgrade-cabal
       - run: stack install $STACK_ARGS --only-dependencies --test --no-run-tests
       - *save_stack_lts-9_cache
       - run: stack test $STACK_ARGS
