@@ -1,15 +1,19 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 
 -- | TAG a stack project based on snapshot versions
+module Stack.Tag (
+      StackTagOpts(..)
+    , stackTag
+    ) where
 
-module Stack.Tag where
+import qualified Data.Set         as Set
+import qualified Data.Text        as T
+import qualified Data.Traversable as T
+import qualified Hasktags
+import qualified GHC.IO.IOMode as GHC
 
-import qualified Data.Set          as Set
-import qualified Data.Text         as T
-import qualified Data.Traversable  as T
-
-import Control.Exception    as E
 import Control.Monad.Reader
 import Data.Either
 import Data.Maybe
@@ -20,17 +24,16 @@ import System.Process
 
 import Control.Concurrent.Async.Pool
 
+import qualified Debug.Trace as Trace
+
 
 data StackTagOpts = StackTagOpts {
 
-      -- | Location of the stack.yaml to generate tags for
-      optsStackYaml :: !(Maybe FilePath)
-
       -- | Verbose output
-    , optsVerbose   :: !Bool
+      optsVerbose :: !Bool
 
       -- | Flag to ignore any cached tags and re-run the tagger
-    , noCache       :: !Bool
+    , noCache     :: !Bool
 
     } deriving Show
 
@@ -43,7 +46,6 @@ data Tagger = Hasktags
 data TagFmt = CTags
             | ETags
             | Both
-            | OtherFmt Text
             deriving Show
 
 type TagOutput = FilePath
@@ -62,18 +64,17 @@ newtype StackTag a = StackTag {
              , MonadIO
              )
 
-defStackOpts :: StackTagOpts
-defStackOpts = StackTagOpts Nothing False True
 
+-- | Generate tags for a stack project indicated by a `stack.yaml` in the current directory.
 stackTag :: StackTagOpts -> IO ()
 stackTag = runReaderT (runStackTag app)
- where
-  app = do chkStackCompatible
-           chkHaskTags
-           chkIsStack
-           sources     <- stkPaths
-           depSources  <- stkDepSources
-           tagSources sources depSources
+  where
+    app = do
+        chkStackCompatible
+        chkIsStack
+        paths <- stkPaths
+        depSources <- stkDepSources
+        tagSources paths depSources
 
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
@@ -94,19 +95,8 @@ runStk args = io $ readProcessWithExitCode "stack" args []
 
 chkIsStack :: StackTag ()
 chkIsStack = do
-  StackTagOpts {optsStackYaml=stackYaml} <- ask
-  sYaml <- io $ doesFileExist "stack.yaml"
-
-  case stackYaml of
-    Nothing -> unless sYaml $ error "stack.yaml not found or specified!"
-    _       -> return ()
-
-chkHaskTags :: StackTag ()
-chkHaskTags = do
-  ht <- io $ findExecutable "hasktags"
-  case ht of
-    Just _p -> return ()
-    Nothing -> error "You must have hasktags installed Run 'stack install hasktags'."
+    stack_yaml <- io $ doesFileExist "stack.yaml"
+    unless stack_yaml $ error "stack.yaml not found or specified!"
 
 --- | Check whether the current version of stack
 -- is compatible by trying to run `stack list-depenencies --help`.
@@ -120,24 +110,32 @@ chkStackCompatible = do
 
 -- | Get a list of relavant directories from stack using
 -- the @stack path@ command
-stkPaths :: StackTag [(Text,[Text])]
+stkPaths :: StackTag [(Text, [Text])]
 stkPaths = do
-    (_,ps,_) <- runStk ["path"]
+    (_, ps, _) <- runStk ["path"]
     return (parsePaths ps)
   where
     parsePaths = map parsePath . T.lines . T.pack
-    parsePath ps = let (k,vs) = T.breakOn ":" ps
-                   in (k, splitAndStrip vs)
+    parsePath ps =
+        let (k, vs) = T.breakOn ":" ps
+        in (k, splitAndStrip vs)
     splitAndStrip = filter (not . T.null) . map T.strip . T.splitOn ":"
 
 -- | Get a list of dependencies using:
--- @stack --list-dependencies --test --bench --separator=-@
-stkDepSources :: StackTag [String]
+stkDepSources :: StackTag [FilePath]
 stkDepSources = do
-  (_exitc,ls,_) <- runStk [ "ls", "dependencies", "--external"
-                               , "--include-base", "--test"
-                               , "--bench", "--separator=-"]
-  return $ lines ls
+    (_exitc,ls,_) <- runStk [ "ls"
+                            , "dependencies"
+                            , "--separator=-"
+                            , "--external"
+                            , "--include-base"
+                            , "--prune", "ghc-boot-th,rts"
+                            -- , "--test"
+                            -- , "--bench"
+                            ]
+    return $ fmap T.unpack
+           $ T.lines
+           $ T.pack ls
 
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
@@ -152,7 +150,8 @@ tagSources srcs depsrcs = do
   depTagFiles <- parTag srcs depsrcs
 
   -- map a tag command over all provided sources
-  thisProj   <- runTagger (TagCmd Hasktags ETags "stack.tags" tagroot "project-root")
+  dir <- io getCurrentDirectory
+  thisProj   <- runTagger (TagCmd Hasktags ETags "stack.tags" tagroot dir)
   taggedSrcs <- T.traverse (io . readFile) (rights (thisProj : depTagFiles))
 
   let errors = lefts (thisProj : depTagFiles)
@@ -192,79 +191,104 @@ parTag srcs depsrcs = do
 tagDependency :: Bool -> [(Text, [Text])] -> FilePath -> StackTag (Either (PkgName, String) FilePath)
 tagDependency nocache stkpaths dep = do
 
-    let snapRoot
-            | Just (sr : _) <- lookup "snapshot-install-root" stkpaths = sr
-            | otherwise = error ("[tag:error] error tagging "
-                               ++ dep
-                               ++ ". "
-                               ++ "No 'snapshot-install-root' found, aborting.")
-        dir          = T.unpack snapRoot ++ "/packages" ++ "/" ++ dep
-        tagFile      = dir ++ "/TAGS"
-
     -- HACK as of Aug 5 2015, `stack unpack` can only download sources
     -- into the current directory. Therefore, we move the source to
     -- the correct snapshot location. This could/should be fixed in
     -- the stack source (especially since --haddock has similar
     -- behavior). A quick solution to avoid this might be to run the
     -- entire function in the target directory
-    _ <- io $ readProcess "rm" ["--preserve-root", "-rf", dep] []
+    -- _ <- io $ readProcess "rm" ["--preserve-root", "-rf", dep] []
 
-    -- error (show dep)
+    unpack nocache dep stkpaths >>= \case
 
-    exists <- io $ doesDirectoryExist dir
-    tagged <- io $ doesFileExist tagFile
+        Nothing ->
+            return (Left (dep, ""))
 
-    unless exists $ void $ do
-        io $ createDirectoryIfMissing True dir
-        p $ "[tag:download] " ++ dep
-        (ec,stout,_) <- runStk ["unpack", dep]
-        case ec of
-          ExitFailure _ -> void $ do
-              p $ "[tag:download] failed to download " ++ dep ++ " - " ++ stout
-          ExitSuccess   -> void $ do
-              p $ "[tag:download] cp " ++ dep ++ " to snapshot source cache in " ++ dir
-              io $ readProcess "mv" [dep,dir] []
+        Just (dir, tagFile, tagged) -> do
 
-    if tagged && nocache
-       then do p $ "[tag:nocache] " ++ dep
+            if tagged && not nocache then do
+
+               p $ "[tag:nocache] " ++ dep
                return (Right tagFile)
-       else do p $ "[tag:cache] " ++ dep
+
+            else do
+               p $ "[tag:cache] " ++ dep
                runTagger (TagCmd Hasktags ETags tagFile dir dep)
 
+unpack :: Bool
+       -> String
+       -> [(Text , [Text])]
+       -> StackTag (Maybe (String, String, Bool))
+unpack nocache dep stkpaths = do
+
+    let snapRoot
+            | Just (sr : _) <- lookup "snapshot-install-root" stkpaths = sr
+            | otherwise = error ("[tag:error] error tagging "
+                               ++ dep
+                               ++ ". "
+                               ++ "No 'snapshot-install-root' found, aborting.")
+        all_deps_dir = T.unpack snapRoot ++ "/packages"
+        dep_dir      = all_deps_dir ++ "/" ++ dep
+        tagFile      = dep_dir ++ "/TAGS"
+
+    exists <- io $ doesDirectoryExist dep_dir
+    tagged <- io $ doesFileExist tagFile
+
+    if not nocache && exists then do
+        return $ Just (dep_dir, tagFile, tagged)
+    else do
+        p $ "[tag:download] " ++ dep
+        (ec,_,sterr) <- runStk ["unpack"
+                               , "--to", all_deps_dir
+                               , dep
+                               ]
+        case ec of
+          ExitFailure _
+              | exists -> do
+                    return $ Just (dep_dir, tagFile, tagged)
+              | otherwise -> do
+                    p $ "[tag:download] failed to download " ++ dep ++ " - " ++ sterr
+                    return Nothing
+          ExitSuccess -> do
+              return $ Just (dep_dir, tagFile, tagged)
+
 runTagger :: TagCmd -> StackTag (Either (PkgName, String) TagOutput)
-runTagger (TagCmd t fmt to fp dep) = do
+runTagger (TagCmd _ fmt to dir dep) = do
 
-    let opts = [ tagFmt fmt
-               , "-R"  -- tags-absolute
-               -- made the default & removed
-               -- , "--ignore-close-implementation"
-              , "--follow-symlinks"
-              -- , "--cache"
-              , "--output"
-              , to
-              , fp
-              ]
+    -- let is_taggable src
+    --       | "{-# CTYPE #-}" `T.isInfixOf` src -> False
+    --       | "test/" `T.isPrefixOf src -> False
+    -- findFileWith isHaskellSrc dir Executable path (binary <.> exeExtension)
 
-    (ec, stout, err) <- hasktags opts
+    filepaths <- io $ Hasktags.dirToFiles True [".hs"] dir
+
+    let opts = Hasktags.Mode {
+                 Hasktags._tags = case fmt of
+                                      CTags -> Hasktags.Ctags
+                                      ETags  -> Hasktags.Etags
+                                      Both -> undefined -- Hasktags.Both
+               , Hasktags._extendedCtag = False
+               , Hasktags._appendTags = GHC.WriteMode -- AppendMode
+               , Hasktags._outputFile = Hasktags.TagsFile {
+                                          Hasktags._ctagsFile = to
+                                        , Hasktags._etagsFile = to
+                                        }
+               , Hasktags._cacheData = False
+               , Hasktags._followSymlinks = True
+               , Hasktags._suffixes = [".hs",".lhs"]
+               , Hasktags._absoluteTagPaths = True
+               }
+
+    p $ "[tag:tagging] " ++ dep
+    (ec, stout, err) <- io $ hasktags opts filepaths -- `E.catch` onerr
 
     case ec of
         ExitFailure _
             | null err -> return $ Left (dep, stout)
             | otherwise -> return $ Left (dep, err)
-        ExitSuccess   -> return $ Right to
+        ExitSuccess -> return $ Right to
   where
-    hasktags opts = io $
-        readProcessWithExitCode (tagExe t) opts []
-          `E.catch` (\(SomeException err) -> return (ExitFailure 1, displayException err, ""))
-
-
--- TODO tagExe Hasktags   = "fast-tags"
-tagExe :: Tagger -> String
-tagExe Hasktags   = "hasktags"
-tagExe _          = error "Tag command not supported. Feel free to create an issue at https://github.com/creichert/stack-tag"
-
-tagFmt :: TagFmt -> String
-tagFmt ETags   = "--etags"
-tagFmt CTags   = "--etags"
-tagFmt Both    = "--both"
-tagFmt _       = error "Tag format not supported. Feel free to create an issue at https://github.com/creichert/stack-tag"
+    hasktags opts filepaths = do
+        Hasktags.generate opts filepaths
+        return (ExitSuccess, "", "")
+    -- onerr (SomeException err) = return (ExitFailure 1, displayException err, "")
