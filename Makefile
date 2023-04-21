@@ -13,4 +13,4 @@ clean:
 	stack clean
 
 TAGS: build
-	stack exec -- stack-tag --verbose
+	stack exec -- stack-tag --verbose --no-cache

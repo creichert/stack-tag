@@ -1,8 +1,9 @@
 
-resolver: lts-11.22
+resolver: lts-17.8
 
 packages:
   - '.'
 
 extra-deps:
-  - hasktags-0.70.1
+  - hasktags-0.72.0
+  - json-0.10

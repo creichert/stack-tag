@@ -3,20 +3,13 @@
 
 module Main where
 
-import Control.Applicative
-import Data.Monoid
 import Options.Applicative
 import Stack.Tag
 
 stackTagOptions :: Parser StackTagOpts
 stackTagOptions =
    StackTagOpts
-   <$> optional
-      ( strOption
-         ( long "stack-yaml"
-        <> metavar "STACK_YAML"
-        <> help "Location of stack.yaml" ) )
-   <*> switch
+   <$> switch
         ( long "verbose"
         <> help "Verbose debug output" )
    <*> switch

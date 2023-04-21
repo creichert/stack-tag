@@ -125,7 +125,7 @@ jobs:
     docker:
       - image: fpco/stack-build:lts-12.9
     environment:
-      STACK_ARGS: "--resolver nightly --jobs 2"
+      STACK_ARGS: "--jobs 2"
     steps:
       - checkout
       - *restore_stack_default_cache
@@ -194,7 +194,7 @@ jobs:
     steps:
       - checkout
       - *restore_stack_lts-9_cache
-      - run: stack setup $STACK_ARGS
+      - run: stack setup $STACK_ARGS --install-cabal
       - run: stack install $STACK_ARGS --only-dependencies --test --no-run-tests
       - *save_stack_lts-9_cache
       - run: stack test $STACK_ARGS
